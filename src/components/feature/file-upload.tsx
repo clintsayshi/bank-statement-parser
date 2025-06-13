@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { ChangeEvent } from "react";
@@ -8,14 +9,16 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { parseBankStatement, type ParseBankStatementOutput } from "@/ai/flows/parse-bank-statement";
 import { UploadCloud, Loader2, FileText } from "lucide-react";
-import type { Transaction } from "@/types";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
+
 
 interface FileUploadProps {
-  onTransactionsParsed: (transactions: Transaction[]) => void;
+  onParsedStatementData: (data: ParseBankStatementOutput) => void;
   onProcessing: (isProcessing: boolean) => void;
 }
 
-export function FileUpload({ onTransactionsParsed, onProcessing }: FileUploadProps) {
+export function FileUpload({ onParsedStatementData, onProcessing }: FileUploadProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isParsing, setIsParsing] = useState(false);
   const { toast } = useToast();
@@ -32,7 +35,9 @@ export function FileUpload({ onTransactionsParsed, onProcessing }: FileUploadPro
           description: "Please upload a PDF or CSV file.",
         });
         setSelectedFile(null);
-        event.target.value = ""; // Reset file input
+        if (event.target) {
+         event.target.value = ""; // Reset file input
+        }
       }
     }
   };
@@ -58,20 +63,31 @@ export function FileUpload({ onTransactionsParsed, onProcessing }: FileUploadPro
 
     setIsParsing(true);
     onProcessing(true);
-    onTransactionsParsed([]); // Clear previous transactions
+    // Clear previous data by sending an empty structure
+    onParsedStatementData({ transactions: [] });
+
 
     try {
       const dataUri = await fileToDataUri(selectedFile);
       const result: ParseBankStatementOutput = await parseBankStatement({ statementDataUri: dataUri });
       
       if (result && result.transactions) {
-        onTransactionsParsed(result.transactions);
+        onParsedStatementData(result);
         toast({
           title: "Success",
           description: "Bank statement parsed successfully.",
         });
       } else {
-        throw new Error("Failed to parse transactions or received empty result.");
+         // This case might indicate an issue with the AI's response structure
+        onParsedStatementData({ 
+            transactions: [],
+            accountHolderName: undefined,
+            accountNumber: undefined,
+            bankAddress: undefined,
+            bankName: undefined,
+            statementPeriod: undefined 
+        });
+        throw new Error("Failed to parse transactions or received incomplete data from AI.");
       }
 
     } catch (error) {
@@ -81,7 +97,14 @@ export function FileUpload({ onTransactionsParsed, onProcessing }: FileUploadPro
         title: "Parsing Error",
         description: (error instanceof Error ? error.message : "An unknown error occurred while parsing the statement. Please ensure the file is a valid bank statement."),
       });
-      onTransactionsParsed([]);
+      onParsedStatementData({ 
+        transactions: [],
+        accountHolderName: undefined,
+        accountNumber: undefined,
+        bankAddress: undefined,
+        bankName: undefined,
+        statementPeriod: undefined
+      });
     } finally {
       setIsParsing(false);
       onProcessing(false);
@@ -93,7 +116,7 @@ export function FileUpload({ onTransactionsParsed, onProcessing }: FileUploadPro
       <CardHeader>
         <CardTitle className="text-2xl font-headline text-center">Upload Bank Statement</CardTitle>
         <CardDescription className="text-center">
-          Select a PDF or CSV file to extract transactions.
+          Select a PDF or CSV file to extract transactions and details.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -137,14 +160,3 @@ export function FileUpload({ onTransactionsParsed, onProcessing }: FileUploadPro
   );
 }
 
-// Dummy Card components for structure if not importing globally
-// Usually, these would be imported from '@/components/ui/card'
-const Card = ({ className, children }: { className?: string, children: React.ReactNode }) => <div className={cn("rounded-lg border bg-card text-card-foreground shadow-sm", className)}>{children}</div>;
-const CardHeader = ({ className, children }: { className?: string, children: React.ReactNode }) => <div className={cn("flex flex-col space-y-1.5 p-6", className)}>{children}</div>;
-const CardTitle = ({ className, children }: { className?: string, children: React.ReactNode }) => <h3 className={cn("text-2xl font-semibold leading-none tracking-tight", className)}>{children}</h3>;
-const CardDescription = ({ className, children }: { className?: string, children: React.ReactNode }) => <p className={cn("text-sm text-muted-foreground", className)}>{children}</p>;
-const CardContent = ({ className, children }: { className?: string, children: React.ReactNode }) => <div className={cn("p-6 pt-0", className)}>{children}</div>;
-
-// cn utility if not imported globally
-// Usually, this would be imported from '@/lib/utils'
-const cn = (...inputs: any[]) => inputs.filter(Boolean).join(' ');

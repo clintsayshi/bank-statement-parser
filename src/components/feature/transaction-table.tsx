@@ -1,3 +1,4 @@
+
 "use client";
 
 import {
@@ -24,30 +25,22 @@ export function TransactionTable({ transactions }: TransactionTableProps) {
   };
 
   const formatDate = (dateString: string) => {
+    if (!dateString) return 'N/A';
     // Attempt to parse various date formats if necessary, or assume a consistent one
     const date = new Date(dateString);
-    if (isNaN(date.getTime())) {
-      return dateString; // Return original string if date is invalid
+    // Check if the date is valid, an additional check for YYYY-MM-DD which might be parsed as UTC by Date constructor
+    if (isNaN(date.getTime()) || /^\d{4}-\d{2}-\d{2}$/.test(dateString) && date.getUTCDate() !== parseInt(dateString.split('-')[2])) {
+       // If date is invalid or a YYYY-MM-DD that got timezone shifted, return original or re-parse carefully
+       // For simplicity, just returning original if complex parsing isn't immediately robust
+      return dateString;
     }
-    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' }); // Add timeZone UTC for consistency with YYYY-MM-DD
   };
 
   if (!transactions || transactions.length === 0) {
-    return (
-      <Card className="w-full mt-8">
-        <CardHeader>
-          <CardTitle className="text-xl font-headline text-center flex items-center justify-center">
-            <FileSpreadsheet className="mr-2 h-6 w-6 text-primary" />
-            Transactions
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-center text-muted-foreground py-8">
-            No transactions to display. Upload a statement to get started.
-          </p>
-        </CardContent>
-      </Card>
-    );
+    // This component will not render anything if there are no transactions.
+    // The parent component (StatementParserPage) will handle showing a message like "Upload a statement...".
+    return null;
   }
 
   return (
@@ -73,9 +66,9 @@ export function TransactionTable({ transactions }: TransactionTableProps) {
               {transactions.map((transaction, index) => (
                 <TableRow key={index} aria-rowindex={index + 1}>
                   <TableCell className="font-medium">{formatDate(transaction.date)}</TableCell>
-                  <TableCell>{transaction.description}</TableCell>
+                  <TableCell>{transaction.description || 'N/A'}</TableCell>
                   <TableCell className={`text-right font-medium ${transaction.amount < 0 ? 'text-destructive' : 'text-green-600'}`}>
-                    {formatCurrency(transaction.amount)}
+                    {transaction.amount !== undefined ? formatCurrency(transaction.amount) : 'N/A'}
                   </TableCell>
                 </TableRow>
               ))}
@@ -86,3 +79,4 @@ export function TransactionTable({ transactions }: TransactionTableProps) {
     </Card>
   );
 }
+
